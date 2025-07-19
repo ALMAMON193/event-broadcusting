@@ -26,8 +26,6 @@ class PostCreate implements ShouldBroadcast
     {
         return new Channel('posts');
     }
-
-
     public function broadcastAs(): string
     {
         return 'create';
