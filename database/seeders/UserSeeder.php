@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
         // প্রথমে ইউজার তৈরি করি
         $users = [
             [
-                'name' => 'Dr. John Doe',
+                'name' => 'admin',
                 'email' => 'admin@admin.com',
                 'password' => Hash::make('123456'),
                 'is_admin' => true,

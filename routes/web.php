@@ -15,5 +15,17 @@ Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name
 Route::get('/posts', action: [PostController::class, 'index'])->name('posts.index');
 Route::post('/posts', [PostController::class, 'store'])->name('posts.store');
 
-Route::get('/chats', action: [MessageController::class, 'index'])->name('chat.index');
-Route::post('/chat', [MessageController::class, 'store'])->name('chat.store');
+// Chat routes - require authentication
+Route::middleware(['auth'])->group(function () {
+    // Chat interface
+    Route::get('/chat', [MessageController::class, 'index'])->name('chat.index');
+
+    // Send message
+    Route::post('/chat', [MessageController::class, 'store'])->name('chat.store');
+
+    // Get messages API for real-time updates
+    Route::get('/api/messages', [MessageController::class, 'getMessages'])->name('chat.messages');
+
+    // Mark messages as read
+    Route::post('/api/messages/mark-read', [MessageController::class, 'markAsRead'])->name('chat.mark-read');
+});
