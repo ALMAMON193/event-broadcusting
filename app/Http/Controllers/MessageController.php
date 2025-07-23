@@ -19,18 +19,31 @@ class MessageController extends Controller
     {
         $user = auth()->user();
 
-        $chats = Message::where(function($q) use ($user) {
+        $memberIds = [];
+        if ($user->role === 'patient') {
+            $memberIds = \App\Models\PatientMember::where('patient_id', $user->id)->pluck('id')->toArray();
+        }
+
+        $chats = \App\Models\Message::where(function ($q) use ($user) {
             $q->where('sender_id', $user->id)->where('sender_type', $user->role);
-        })->orWhere(function($q) use ($user) {
+        })->orWhere(function ($q) use ($user, $memberIds) {
             $q->where('receiver_id', $user->id)->where('receiver_type', $user->role);
+
+            // Also include messages sent to this patient's members
+            if (!empty($memberIds)) {
+                $q->orWhere(function ($subQ) use ($memberIds) {
+                    $subQ->whereIn('receiver_id', $memberIds)->where('receiver_type', 'patient_member');
+                });
+            }
         })->orderBy('created_at')->get();
 
-        $users = User::all()->map(function ($u) {
+        // All receivers
+        $users = \App\Models\User::all()->map(function ($u) {
             $u->type = $u->role;
             return $u;
         });
 
-        $members = PatientMember::all()->map(function ($m) {
+        $members = \App\Models\PatientMember::all()->map(function ($m) {
             $m->type = 'patient_member';
             return $m;
         });
@@ -40,32 +53,25 @@ class MessageController extends Controller
         return view('chats', compact('chats', 'allReceivers'));
     }
 
+
     public function store(Request $request)
     {
         $request->validate([
             'message' => 'required|string',
             'receiver_id' => 'required|integer',
+            'receiver_type' => 'required|string', // Now required
         ]);
 
         $user = auth()->user();
 
         $receiverId = $request->receiver_id;
+        $receiverType = $request->receiver_type;
 
-        // Detect receiver_type by searching in User and PatientMember tables
-        $receiverType = null;
-        $receiverUser = \App\Models\User::find($receiverId);
-        if ($receiverUser) {
-            $receiverType = $receiverUser->role; // e.g. 'doctor' or 'patient'
-        } else {
-            $receiverMember = \App\Models\PatientMember::find($receiverId);
-            if ($receiverMember) {
-                $receiverType = 'patient_member';
-            } else {
-                return back()->withErrors('Receiver not found');
-            }
+        // Extra validation: if patient replies as their member
+        if ($user->role === 'patient' && $receiverType === 'doctor') {
+            // optional: validate if they’re replying as their member
         }
 
-        // Your sender_type from logged in user role (make sure role is set)
         $senderType = $user->role;
 
         $message = \App\Models\Message::create([

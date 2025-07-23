@@ -24,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'role', // 'doctor', 'patient'
     ];
 
     /**
@@ -47,5 +48,25 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
         ];
+    }
+    public function patient()
+    {
+        return $this->hasOne(Patient::class);
+    }
+
+    public function doctorProfile()
+    {
+        return $this->hasOne(DoctorProfile::class);
+    }
+
+    // Get the profile based on role
+    public function getProfileAttribute()
+    {
+        if ($this->role === 'doctor') {
+            return $this->doctorProfile;
+        } elseif ($this->role === 'patient') {
+            return $this->patient;
+        }
+        return null;
     }
 }

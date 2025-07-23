@@ -514,7 +514,9 @@
                     </div>
                     <div class="contacts-list">
                         @foreach($allReceivers as $receiver)
-                            <div class="contact-item" data-receiver-id="{{ $receiver->id }}">
+                            <div class="contact-item"
+                                 data-receiver-id="{{ $receiver->id }}"
+                                 data-receiver-type="{{ $receiver->type }}">
                                 <div class="contact-avatar">
                                     {{ strtoupper(substr($receiver->name, 0, 1)) }}
                                 </div>
@@ -563,11 +565,15 @@
                     <div class="chat-input-area">
                         <form method="POST" action="{{ route('chat.store') }}" class="message-form">
                             @csrf
+
+                            {{-- Receiver ID --}}
+                            <input type="hidden" name="receiver_type" id="receiver_type">
+
                             <div class="form-group receiver-select">
                                 <select name="receiver_id" id="receiver_id" class="form-control" required>
                                     <option value="">Select Recipient</option>
                                     @foreach($allReceivers as $receiver)
-                                        <option value="{{ $receiver->id }}">
+                                        <option value="{{ $receiver->id }}" data-type="{{ $receiver->type }}">
                                             {{ $receiver->name }} ({{ ucfirst($receiver->type) }})
                                         </option>
                                     @endforeach
@@ -595,75 +601,76 @@
         const userId = {{ auth()->id() }};
         const chatBox = document.getElementById('chat-box');
 
-        console.log(`Subscribing to channel: chat.${userRole}.${userId}`);
-
-        // Contact selection functionality
-        document.querySelectorAll('.contact-item').forEach(contact => {
-            contact.addEventListener('click', function() {
-                // Remove active class from all contacts
-                document.querySelectorAll('.contact-item').forEach(c => c.classList.remove('active'));
-                // Add active class to clicked contact
-                this.classList.add('active');
-
-                // Set the receiver in the select dropdown
-                const receiverId = this.dataset.receiverId;
-                document.getElementById('receiver_id').value = receiverId;
-
-                // Focus on message input
-                document.querySelector('input[name="message"]').focus();
-            });
-        });
-
-        // Auto-scroll to bottom
         function scrollToBottom() {
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Initial scroll to bottom
         scrollToBottom();
 
+        // Handle Echo
         window.Echo.private(`chat.${userRole}.${userId}`)
             .listen('.message.sent', (data) => {
-                console.log('New message received:', data);
-
-                // Determine if message is sent by current user
                 const isSentByCurrentUser = data.sender_id == userId;
                 const messageClass = isSentByCurrentUser ? 'sent' : 'received';
 
                 const messageHtml = `
                 <div class="message-item ${messageClass}">
                     <div class="message-sender">
-                        <div class="message-avatar">
-                            ${data.sender_type.charAt(0).toUpperCase()}
-                        </div>
-                        <div class="sender-info">
-                            ${capitalize(data.sender_type)} (ID: ${data.sender_id})
-                        </div>
+                        <div class="message-avatar">${data.sender_type.charAt(0).toUpperCase()}</div>
+                        <div class="sender-info">${capitalize(data.sender_type)} (ID: ${data.sender_id})</div>
                     </div>
                     <div class="message-content">
                         ${data.message}
-                        <div class="message-time">
-                            <i class="fas fa-clock me-1"></i>
-                            ${data.created_at}
-                        </div>
+                        <div class="message-time"><i class="fas fa-clock me-1"></i> ${data.created_at}</div>
                     </div>
                 </div>
             `;
-
                 chatBox.insertAdjacentHTML('beforeend', messageHtml);
                 scrollToBottom();
             });
 
-        // Form submission enhancement
+        // Utility to capitalize first letter
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        // Click on contact in sidebar
+        document.querySelectorAll('.contact-item').forEach(contact => {
+            contact.addEventListener('click', function() {
+                document.querySelectorAll('.contact-item').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+
+                const receiverId = this.dataset.receiverId;
+                const receiverType = this.dataset.receiverType;
+
+                document.getElementById('receiver_id').value = receiverId;
+                document.getElementById('receiver_type').value = receiverType;
+
+                document.querySelector('input[name="message"]').focus();
+            });
+        });
+
+        // Change from dropdown — update hidden receiver_type
+        document.getElementById('receiver_id').addEventListener('change', function () {
+            const selectedOption = this.options[this.selectedIndex];
+            const receiverType = selectedOption.getAttribute('data-type');
+            document.getElementById('receiver_type').value = receiverType;
+        });
+
+        // Submit form feedback
         document.querySelector('.message-form').addEventListener('submit', function(e) {
             const messageInput = this.querySelector('input[name="message"]');
             const sendBtn = this.querySelector('.send-btn');
 
-            // Add loading state
-            sendBtn.innerHTML = '<div class="message-loading"></div>';
+            if (!document.getElementById('receiver_id').value || !document.getElementById('receiver_type').value) {
+                alert("Please select a recipient.");
+                e.preventDefault();
+                return;
+            }
+
+            sendBtn.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
             sendBtn.disabled = true;
 
-            // Reset after form submission
             setTimeout(() => {
                 sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
                 sendBtn.disabled = false;
@@ -671,17 +678,12 @@
             }, 1000);
         });
 
-        // Enter key to send message
+        // Send on Enter key
         document.querySelector('input[name="message"]').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 document.querySelector('.message-form').dispatchEvent(new Event('submit'));
             }
         });
-
-        // Capitalize utility
-        function capitalize(str) {
-            return str.charAt(0).toUpperCase() + str.slice(1);
-        }
     </script>
 @endsection
